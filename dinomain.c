@@ -32,13 +32,14 @@ int main(){
   char dino = '*', obstacle = '|';
   char* gameOver = "Sorry, you lost", welcome = "Push to Start", difficutys = " 0=E 1=M 2=H ";
   int start = 0, difficulty; // int to say when to start the game and int for difficulty
-  int shiftChecker = 0; // two ints for direction of shifting and where on the LCD the Text is
+  int shiftChecker; // two ints for direction of shifting and where on the LCD the Text is
 
   Write_String_LCD(welcome);
   Write_Instr_LCD(0xC0); // go to the second line to display difficulty ratings
   Write_String_LCD(difficutys);
 
   while(1){
+	shiftChecker = 0;
     while (start == 0){ // wait till a difficulty button is pressed until we start the game
 		if (direction == 0) { // If shifting right
 			if (shiftChecker < 3) { // Occurs while shift is possible
