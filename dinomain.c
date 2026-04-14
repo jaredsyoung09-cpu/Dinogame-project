@@ -1,5 +1,6 @@
 #include "main.h"
 #include <stdlib.h> // import for rand()
+#include <string.h>
 
 void Delay(unsigned int);
 void Init_GPIO_Ports(void);
