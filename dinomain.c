@@ -2,19 +2,17 @@
 #include <stdlib.h> // import for rand()
 
 void Delay(unsigned int);
-void Init_Buzzer(void);
-void Init_PushButtons(void);
-void LCD_Init(void);
+void Init_GPIO_Ports(void);
 void Write_SR_LCD(uint8_t);
 void LCD_nibble_write(uint8_t, uint8_t);
 void Write_Instr_LCD(uint8_t);
 void Write_Char_LCD(uint8_t);
 void Write_String_LCD(char*);
-void Init_7seg(void);
 void Write_SR_7S(uint8_t, uint8_t);
 void Write_7Seg(uint8_t, uint8_t);
 void SystemClock_Config(void);
 void Shift_LCD(int);
+void fail(void);
 
 //Main code 
 int main(){
@@ -22,25 +20,22 @@ int main(){
     
   HAL_Init();
   SystemClock_Config();
-  LCD_Init(); // lcd latch: PA10 |clock: PB5 |serial input: PA5 (all output)
-  Init_7seg(); // lcd latch: PC10 |clock: PB5 |serial input: PA5 (all output)
-  Init_PushButtons(); // SW 2: PB11, SW 3: PB10, SW 4: PB9, SW 5: PB8
-  Init_Buzzer(); // PC9
-  Shift_LCD(); // Moving Starting Screen Text Left and Right
+  Init_GPIO_Ports();
 
   char line1Chars[16] = {0}, line2Chars[16] = {0};
   char dino = '*', obstacle = '|';
   char* gameOver = "Sorry, you lost", welcome = "Push to Start", difficutys = " 0=E 1=M 2=H ";
   int start = 0, difficulty; // int to say when to start the game and int for difficulty
   int shiftChecker; // two ints for direction of shifting and where on the LCD the Text is
+  int object;
+  int i;
 
-  Write_String_LCD(welcome);
-  Write_Instr_LCD(0xC0); // go to the second line to display difficulty ratings
-  Write_String_LCD(difficutys);
-
-  while(1){
+  while(1) {
+	Write_String_LCD(welcome);
+ 	Write_Instr_LCD(0xC0); // go to the second line to display difficulty ratings
+  	Write_String_LCD(difficutys);
 	shiftChecker = 0;
-    while (start == 0){ // wait till a difficulty button is pressed until we start the game
+    while (start == 0) { // wait till a difficulty button is pressed until we start the game
 		if (direction == 0) { // If shifting right
 			if (shiftChecker < 3) { // Occurs while shift is possible
 				Shift_LCD(direction); // Shifts Top Line 1
@@ -70,18 +65,19 @@ int main(){
 	          } else if((GPIOB->IDR&(0x1<<9))!=0){
 	            difficulty = 2;
 	          }
-	          startBool = 1;
+	          start = 1;
 	          Write_Instr_LCD(0x01); // clear screen
+			  Write_Instr_LCD(0x0C); // Turns off Cursor
 	        }
 	      	// stay while button is still pressed
 	      	while((GPIOB->IDR&(0x1<<9))!=0 && (GPIOB->IDR&(0x1<<10))!=0 && (GPIOB->IDR&(0x1<<11))!=0) {}
-	      	delay(25); // more debouncing
+	      	Delay(25); // more debouncing
 		}
 		
     }
-
+	
     // to do : rest of the program
-  
+  	
   }
 }
 
@@ -93,120 +89,112 @@ void Delay(unsigned int n){
 	}
 }
 
-void Init_Buzzer(){
-  uint32_t temp;
-
-  RCC->AHB2ENR |= RCC_AHB2ENR_GPIOCEN;
-
-  temp=GPIOC->MODER;
-  temp &= ~(0x03<<(2*9));
-  temp|=(0x01<<(2*9));
-  GPIOC->MODER = temp;
-
-  temp=GPIOC->OTYPER;
-  temp &=~(0x01<<9);
-  GPIOC->OTYPER=temp;
-
-  temp=GPIOC->PUPDR;
-  temp&=~(0x03<<(2*9));
-  GPIOC->PUPDR=temp;
-}
-
-void Init_PushButtons(){
-  uint32_t temp; 
-
-  RCC->AHB2ENR |= RCC_AHB2ENR_GPIOBEN;  /* enable GPIOB clock */
-  
-  // SW5
-  temp = GPIOB->MODER;
-  temp &= ~(0x03<<(2*8));
-  GPIOB->MODER = temp; 
-
-  temp=GPIOB->OTYPER;
-  temp &=~(0x01<<8);
-  GPIOB->OTYPER=temp;
-
-  temp=GPIOB->PUPDR;
-  temp&=~(0x03<<(2*8));
-  GPIOB->PUPDR=temp;
-
-  // SW4
-  temp = GPIOB->MODER;
-  temp &= ~(0x03<<(2*9));
-  GPIOB->MODER = temp; 
-
-  temp=GPIOB->OTYPER;
-  temp &=~(0x01<<9);
-  GPIOB->OTYPER=temp;
-
-  temp=GPIOB->PUPDR;
-  temp&=~(0x03<<(2*9));
-  GPIOB->PUPDR=temp;
-
-  // SW 3
-  temp = GPIOB->MODER;
-  temp &= ~(0x03<<(2*10));
-  GPIOB->MODER = temp; 
-
-  temp=GPIOB->OTYPER;
-  temp &=~(0x01<<10);
-  GPIOB->OTYPER=temp;
-
-  temp=GPIOB->PUPDR;
-  temp&=~(0x03<<(2*10));
-  GPIOB->PUPDR=temp;
-
-  // SW 2
-  temp = GPIOB->MODER;
-  temp &= ~(0x03<<(2*11));
-  GPIOB->MODER = temp; 
-
-  temp=GPIOB->OTYPER;
-  temp &=~(0x01<<11);
-  GPIOB->OTYPER=temp;
-
-  temp=GPIOB->PUPDR;
-  temp&=~(0x03<<(2*11));
-  GPIOB->PUPDR=temp;
-
-}
-
-void LCD_Init(){
+void Init_GPIO_Ports(){
   uint32_t temp;
   /* enable GPIOA clock */ 
   RCC->AHB2ENR |= RCC_AHB2ENR_GPIOAEN; 
   /* enable GPIOB clock */ 
   RCC->AHB2ENR |= RCC_AHB2ENR_GPIOBEN;
-  /*PB5 MOSI, PA10 /CS_7 latch , PA5 shift clock */
-  
-  /*PA5 and PA10 are outputs*/ temp = GPIOA->MODER;
-  temp &= ~(0x03<<(2*5)); temp|=(0x01<<(2*5)); 
-  temp &= ~(0x03<<(2*10)); temp|=(0x01<<(2*10)); 
+  /* enable GPIOC clock*/
+  RCC->AHB2ENR |= RCC_AHB2ENR_GPIOCEN;
+
+// PC9: Buzzer
+  temp = GPIOC->MODER;
+  temp &= ~(0x03<<(2*9));
+  temp |= (0x01<<(2*9));
+  GPIOC->MODER = temp;
+
+  temp = GPIOC->OTYPER;
+  temp &= ~(0x01<<9);
+  GPIOC->OTYPER = temp;
+
+  temp = GPIOC->PUPDR;
+  temp &= ~(0x03<<(2*9));
+  GPIOC->PUPDR = temp;
+
+// SW5: PB8
+  temp = GPIOB->MODER;
+  temp &= ~(0x03<<(2*8));
+  GPIOB->MODER = temp; 
+
+  temp = GPIOB->OTYPER;
+  temp &= ~(0x01<<8);
+  GPIOB->OTYPER = temp;
+
+  temp = GPIOB->PUPDR;
+  temp &= ~(0x03<<(2*8));
+  GPIOB->PUPDR = temp;
+
+  // SW4: PB9
+  temp = GPIOB->MODER;
+  temp &= ~(0x03<<(2*9));
+  GPIOB->MODER = temp; 
+
+  temp = GPIOB->OTYPER;
+  temp &= ~(0x01<<9);
+  GPIOB->OTYPER = temp;
+
+  temp = GPIOB->PUPDR;
+  temp &= ~(0x03<<(2*9));
+  GPIOB->PUPDR = temp;
+
+  // SW 3: PB10
+  temp = GPIOB->MODER;
+  temp &= ~(0x03<<(2*10));
+  GPIOB->MODER = temp; 
+
+  temp = GPIOB->OTYPER;
+  temp &= ~(0x01<<10);
+  GPIOB->OTYPER = temp;
+
+  temp = GPIOB->PUPDR;
+  temp &= ~(0x03<<(2*10));
+  GPIOB->PUPDR = temp;
+
+  // SW 2: PB11
+  temp = GPIOB->MODER;
+  temp &= ~(0x03<<(2*11));
+  GPIOB->MODER = temp; 
+
+  temp = GPIOB->OTYPER;
+  temp &= ~(0x01<<11);
+  GPIOB->OTYPER = temp;
+
+  temp = GPIOB->PUPDR;
+  temp &= ~(0x03<<(2*11));
+  GPIOB->PUPDR = temp;
+	
+/*PA5: CLK for Both LCD and Seven Segment & PA10: CLK for LCD set to outputs*/ 
+  temp = GPIOA->MODER;
+  temp &= ~(0x03<<(2*5)); 
+  temp |= (0x01<<(2*5)); 
+  temp &= ~(0x03<<(2*10));
+  temp |= (0x01<<(2*10)); 
   GPIOA->MODER = temp;
   
-  temp=GPIOA->OTYPER;
+  temp = GPIOA->OTYPER;
   temp &=~(0x01<<5);
-  temp &=~(0x01<<10); GPIOA->OTYPER=temp;
+  temp &=~(0x01<<10);
+  GPIOA->OTYPER=temp;
 
-  temp=GPIOA->PUPDR;
-  temp&=~(0x03<<(2*5));
-  temp&=~(0x03<<(2*10)); GPIOA->PUPDR=temp;
+  temp = GPIOA->PUPDR;
+  temp &= ~(0x03<<(2*5));
+  temp &= ~(0x03<<(2*10));
+  GPIOA->PUPDR = temp;
 
-  /*PB5 is output*/
-
+  /*PB5: Output Mode for LCD and Seven Segment*/
   temp = GPIOB->MODER;
   temp &= ~(0x03<<(2*5)); 
-  temp|=(0x01<<(2*5)); 
+  temp |= (0x01<<(2*5)); 
   GPIOB->MODER = temp;
   
-  temp=GPIOB->OTYPER;
+  temp = GPIOB->OTYPER;
   temp &=~(0x01<<5); 
   GPIOB->OTYPER=temp;
       
-  temp=GPIOB->PUPDR;
-  temp&=~(0x03<<(2*5)); 
-  GPIOB->PUPDR=temp;
-
+  temp = GPIOB->PUPDR;
+  temp &= ~(0x03<<(2*5)); 
+  GPIOB->PUPDR = temp;
 
   /* LCD controller reset sequence */ 
   Delay(20);
@@ -224,6 +212,19 @@ void LCD_Init(){
   Write_Instr_LCD(0x01); /* clear display screen and return to home position*/ 
   Write_Instr_LCD(0x06); /* move cursor to right (entry mode set instruction)*/
 
+// PC10: latch for Seven Segment
+  temp = GPIOC->MODER;
+  temp &= ~(0x03<<(2*10));
+  temp |= (0x01<<(2*10));
+  GPIOC->MODER = temp; 
+		 
+  temp = GPIOC->OTYPER;
+  temp &= ~(0x01<<10);
+  GPIOC->OTYPER = temp;
+
+  temp = GPIOC->PUPDR;
+  temp &= ~(0x03<<(2*10));
+  GPIOC->PUPDR = temp;	
 }
 
 void Write_SR_LCD(uint8_t temp){
@@ -291,64 +292,6 @@ void Write_String_LCD(char* temp){
 		Write_Char_LCD(temp[i]);
 		i++;
 	}
-}
-
-void Init_7seg(){
-  // Serial clock
-	temp = GPIOA->MODER;
-	temp &= ~(0x03<<(2*5));
-	temp|=(0x01<<(2*5));
-	GPIOA->MODER = temp; 
-			 
-	temp=GPIOA->OTYPER;
-	temp &=~(0x01<<5);
-	GPIOA->OTYPER=temp;
-	
-	temp=GPIOA->PUPDR;
-	temp&=~(0x03<<(2*5));
-	GPIOA->PUPDR=temp;
-	
-	// serial input
-	temp = GPIOB->MODER;
-	temp &= ~(0x03<<(2*5));
-	temp|=(0x01<<(2*5));
-	GPIOB->MODER = temp; 
-			 
-	temp=GPIOB->OTYPER;
-	temp &=~(0x01<<5);
-	GPIOB->OTYPER=temp;
-	
-	temp=GPIOB->PUPDR;
-	temp&=~(0x03<<(2*5));
-	GPIOB->PUPDR=temp;
-	
-	// latch
-	temp = GPIOC->MODER;
-	temp &= ~(0x03<<(2*10));
-	temp|=(0x01<<(2*10));
-	GPIOC->MODER = temp; 
-			 
-	temp=GPIOC->OTYPER;
-	temp &=~(0x01<<10);
-	GPIOC->OTYPER=temp;
-	
-	temp=GPIOC->PUPDR;
-	temp&=~(0x03<<(2*10));
-	GPIOC->PUPDR=temp;	
-	
-	temp = GPIOA->MODER;
-	temp &= ~(0x03<<(2*10));
-	temp|=(0x01<<(2*10));
-	GPIOA->MODER = temp; 
-	
-	temp=GPIOA->OTYPER;
-	temp &=~(0x01<<10);
-	GPIOA->OTYPER=temp;
-
-	temp=GPIOA->PUPDR;
-	temp&=~(0x03<<(2*10));
-	GPIOA->PUPDR=temp;
-
 }
 
 void Write_SR_7S(uint8_t temp_Enable, uint8_t temp_Digit){
