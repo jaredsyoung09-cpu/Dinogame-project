@@ -12,9 +12,10 @@ void Write_String_LCD(char*);
 void Write_SR_7S(uint8_t, uint8_t);
 void Write_7Seg(uint8_t, uint8_t);
 void SystemClock_Config(void);
+int buttonPress(uint8_t);
 void Shift_LCD(int);
-void fail(void);
-void feed_LCD(char , char char2);
+int updateWelcome(uint32_t, int*);
+void feed_LCD(char , char);
 void createGameMap(char**, char**, int);
 
 //Main code 
@@ -32,63 +33,36 @@ int main(){
 	char* difficutys = " 0=E 1=M 2=H ";
   int start = 0;
 	int difficulty; // int to say when to start the game and int for difficulty
-	int direction = 0;
-  int shiftChecker = 0; // two ints for direction of shifting and where on the LCD the Text is
   int object;
   int i;
 
-  while(1) {
-	Write_String_LCD(welcome);
+  int gameState = 0; // 0:welcome 1:gameplay 2:gameover
+
+	Write_String_LCD(welcome); // place welcome text on screen
  	Write_Instr_LCD(0xC0); // go to the second line to display difficulty ratings
-  	Write_String_LCD(difficutys);
-    while (start == 0) { // wait till a difficulty button is pressed until we start the game
-		if (direction == 0) { // If shifting right
-			if (shiftChecker < 3) { // Occurs while shift is possible
-				Shift_LCD(direction); // Shifts Top Line 1
-				shiftChecker++; // Increments the checker
-				Delay(400);
-			} else {
-				direction = 1; // Changes direction to shifting left
-				Shift_LCD(direction); // Shifts Top Line Left 1
-				shiftChecker--; // Decrements the checker
-				Delay(400);
-			}
-		} else { // If shifting left
-			if (shiftChecker > 0) { // Occurs while shift is possible
-				Shift_LCD(direction); //
-				shiftChecker--;
-				Delay(400);
-			} else {
-				direction = 0;
-				Shift_LCD(direction);
-				shiftChecker++;
-				Delay(400);
-			}
-		}
-		if ((GPIOB->IDR&(0x1<<9))!=0 && (GPIOB->IDR&(0x1<<10))!=0 && (GPIOB->IDR&(0x1<<11))!=0){
-	        Delay(25); // make sure we are still pressed to avoid debouncing
-	        if ((GPIOB->IDR&(0x1<<9))!=0 && (GPIOB->IDR&(0x1<<10))!=0 && (GPIOB->IDR&(0x1<<11))!=0){
-	          if((GPIOB->IDR&(0x1<<11))!=0){
-	            difficulty = 0;
-	          } else if((GPIOB->IDR&(0x1<<10))!=0){
-	            difficulty = 1;
-	          } else if((GPIOB->IDR&(0x1<<9))!=0){
-	            difficulty = 2;
-	          }
-	          start = 1;
-	          Write_Instr_LCD(0x01); // clear screen
-			  Write_Instr_LCD(0x0C); // Turns off Cursor
-	        }
-	      	// stay while button is still pressed
-	      	while((GPIOB->IDR&(0x1<<9))!=0 && (GPIOB->IDR&(0x1<<10))!=0 && (GPIOB->IDR&(0x1<<11))!=0) {}
-	      	Delay(25); // more debouncing
-		}
-		
+  Write_String_LCD(difficutys);
+
+
+while (1) { // start the gameplay loop
+
+    uint32_t now = HAL_GetTick(); // create a timer variable to tell where we are in the game
+
+    switch(gameState) { // create a switch statement to look for and run which state we are in
+
+        case 0:
+            gameState = updateWelcome(now, &difficulty);
+            break;
+
+        case 1:
+            //updateGame(now);
+						
+            break;
+
+        // case 2:
+        //     updateGameOver(now);
+        //     break;
     }
-	
-    // to do : rest of the program
-  	
-  }
+}
 }
 
 void Delay(unsigned int n){
@@ -97,6 +71,64 @@ void Delay(unsigned int n){
 	    for (; n > 0; n--)
 	        for (i = 0; i < 300; i++) ;
 	}
+}
+
+// game states:
+int updateWelcome(uint32_t now, int* difficulty){ // take in which tick we are on
+  static uint32_t lastShift; // have to use static with these variables so we don't lose their value in each function call
+	static int direction = 0;
+  static int shiftChecker = 0; // two ints for direction of shifting and where on the LCD the Text is
+
+  if (now - lastShift >= 400){// if there has been more than 400 ticks since the last shift
+    lastShift = now; // only update last shift per shift so we can continue to poll every 400 ticks
+		if ((direction == 0)) { // If shifting right
+			if (shiftChecker < 3) { // Occurs while shift is possible
+				Shift_LCD(direction); // Shifts Top Line 1
+				shiftChecker++; // Increments the checker
+			} else {
+				direction = 1; // Changes direction to shifting left
+				Shift_LCD(direction); // Shifts Top Line Left 1
+				shiftChecker--; // Decrements the checker
+			}
+		} else if ((direction == 1)) {
+      if (shiftChecker > 0){
+				Shift_LCD(direction);
+				shiftChecker--;
+      } else {
+				direction = 0;
+				Shift_LCD(direction);
+				shiftChecker++;
+			}
+		}
+	}
+	
+  if(buttonPress(11) !=0){ // if there is a button press we need to go to the next state
+    *(difficulty) = 0; //  passing difficulty by reference since we can not return more than 1 value
+    Write_Instr_LCD(0x01); // clear screen to prepare for next state
+		return 1; // return gameplay state if we see a button press
+  } else if(buttonPress(10)!=0){
+    *(difficulty) = 1;
+    Write_Instr_LCD(0x01);
+    return 1;
+  } else if(buttonPress(9) !=0){
+    *(difficulty) = 2;
+    Write_Instr_LCD(0x01);
+    return 1;
+  }
+	return 0; // return welcome game state if we havent changed
+}
+
+// function to make button presses simpler with debouncing active
+int buttonPress(uint8_t buttonNum){
+  static int lastPressTime = 0;
+	// since we cannot use delay with these functions (blocks main loop from running for a bit) we must use the clock again here to debounce
+	if ((GPIOB->IDR&(0x1<<buttonNum)) != 0){
+		if (HAL_getTick() - lastPressTime >= 20){
+      lastPressTime = HAL_getTick(); // set the last press time every time it is pressed so the if statement works
+			return 1;
+	  }
+	}
+	return 0; // if not pressed return 0
 }
 
 void feed_LCD(char char1, char char2){
