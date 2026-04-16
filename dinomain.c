@@ -32,19 +32,18 @@ int main(){
   char line1Chars[16] = {0}, line2Chars[16] = {0};
   char dino = '*', obstacle = '|';
   char* gameOver = "Sorry, you lost";
-	char* welcome = "Push to Start";
-	char* difficutys = " 0=E 1=M 2=H ";
+  char* welcome = "Push to Start";
+  char* difficultys = " 0=E 1=M 2=H ";
   int start = 0;
-	int difficulty; // int to say when to start the game and int for difficulty
+  int difficulty; // int to say when to start the game and int for difficulty
   int object;
   int i;
 
   int gameState = 0; // 0:welcome 1:gameplay 2:gameover
 
-	Write_String_LCD(welcome); // place welcome text on screen
- 	Write_Instr_LCD(0xC0); // go to the second line to display difficulty ratings
-  Write_String_LCD(difficutys);
-
+  Write_String_LCD(welcome); // place welcome text on screen
+  Write_Instr_LCD(0xC0); // go to the second line to display difficulty ratings
+  Write_String_LCD(difficultys);
 
 while (1) { // start the gameplay loop
 
@@ -58,7 +57,6 @@ while (1) { // start the gameplay loop
 
         case 1:
             //updateGame(now);
-						
             break;
 
         // case 2:
@@ -77,7 +75,6 @@ void Delay(unsigned int n){
 }
 //Interrupt initialization
 void EXTI1_SW5_Init(void){
-  uint32_t temp;
   RCC->APB2ENR |= 0x00000001;
   RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
   SYSCFG->EXIT1CR[2] &= ~SYSCFG_EXTICR3_EXTI8_PB;
@@ -87,18 +84,37 @@ void EXTI1_SW5_Init(void){
   EXTI1->IMR |= (1 << 8);
 }
 //Call to interrupt function
-void EXTI19_5_IRQHandler(void){
-    Write_Instr_LCD(0x80);
-    Write_Char_LCD('*');
-
-    //Clearing a flag
-    EXTI->PR |= (1 << 8);
-
-    Delay(10); // Debouncing
-    while((GPIOB->IDR&(1<<8)) != 0){ // Wait until button is released
-
-    }
-    Delay(10);
+void EXTI19_5_IRQHandler(void) {
+    if ((EXTI->PR & (1<<8)) == 0) {	// If SW5 is pressed, Pause
+	    //Clearing a flag
+	    EXTI->PR |= (1 << 8);
+	
+	    Delay(10); // Debouncing
+	    while((GPIOB->IDR&(1<<8)) != 0){ // Wait until pause is released
+	
+	    }
+	    Delay(10);
+		while((GPIOB->IDR&(1<<8)) == 0){ // Waiting for Button to be pressed Again (Play)
+			
+	    }
+		Delay(10);
+		while((GPIOB->IDR&(1<<8)) != 0){ // Wait until play is released
+	
+	    }
+		Delay(500);
+	}
+	else { // If SW4 is pressed, Jump
+		Write_Instr_LCD(0x80);
+	    Write_Char_LCD('*');
+	
+	    //Clearing a flag
+	    EXTI->PR |= (1 << 9);
+		Delay(10);
+		while((GPIOB->IDR & (1<<9)) != 0){ // Wait until pause is released
+	
+	    }
+		Delay(10);
+	}
 }
 // game states:
 int updateWelcome(uint32_t now, int* difficulty){ // take in which tick we are on
