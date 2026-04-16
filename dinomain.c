@@ -19,6 +19,7 @@ void feed_LCD(char , char);
 void createGameMap(char**, char**, int);
 //New interrupt initialization
 void EXTI1_SW5_Init();
+void EXTI19_5_IRQHandler();
 
 //Main code 
 int main(){
