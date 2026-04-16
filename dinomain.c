@@ -17,6 +17,8 @@ void Shift_LCD(int);
 int updateWelcome(uint32_t, int*);
 void feed_LCD(char , char);
 void createGameMap(char**, char**, int);
+//New interrupt initialization
+void EXTI1_SW5_Init();
 
 //Main code 
 int main(){
@@ -72,7 +74,31 @@ void Delay(unsigned int n){
 	        for (i = 0; i < 300; i++) ;
 	}
 }
+//Interrupt initialization
+void EXTI1_SW5_Init(void){
+  uint32_t temp;
+  RCC->APB2ENR |= 0x00000001;
+  RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
+  SYSCFG->EXIT1CR[2] &= ~SYSCFG_EXTICR3_EXTI8_PB;
+  SYSCFG->EXIT1CR[2] |= SYSCFG_EXTICR3_EXTI8_PB;
+  EXTI1->RTSR |= (1 << 8);
+  NVIC->ISER[0U] = 1 << 23;
+  EXTI1->IMR |= (1 << 8);
+}
+//Call to interrupt function
+void EXTI19_5_IRQHandler(void){
+    Write_Instr_LCD(0x80);
+    Write_Char_LCD('*');
 
+    //Clearing a flag
+    EXTI->PR |= (1 << 8);
+
+    Delay(10); // Debouncing
+    while((GPIOB->IDR&(1<<8)) != 0){ // Wait until button is released
+
+    }
+    Delay(10);
+}
 // game states:
 int updateWelcome(uint32_t now, int* difficulty){ // take in which tick we are on
   static uint32_t lastShift; // have to use static with these variables so we don't lose their value in each function call
